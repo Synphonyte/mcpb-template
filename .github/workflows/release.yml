@@ -1,0 +1,105 @@
+name: Release
+
+# Builds the server for each platform, packs every build as an MCP Bundle and
+# attaches the bundles to a GitHub release. Set the version in Cargo.toml and
+# manifest.json, commit, then tag and push:
+#
+#     git tag v0.1.0
+#     git push origin v0.1.0
+#
+# Claude Desktop users download the bundle for their machine from the release
+# and open it to install the server.
+
+on:
+  push:
+    tags: ["v*"]
+  # Packs the bundles without releasing them, to try the workflow out.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # The binary cargo builds, as named in Cargo.toml.
+  BINARY: my-server
+
+jobs:
+  # A tag that does not name the version the bundles carry is a mistake made
+  # before tagging, so refuse it rather than release the wrong version.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check the tag, Cargo.toml and manifest.json agree
+        run: |
+          crate="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          manifest="$(jq -r .version manifest.json)"
+          if [ "$crate" != "$manifest" ]; then
+            echo "::error::Cargo.toml says $crate, manifest.json says $manifest"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$crate" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not name the version v$crate"
+            exit 1
+          fi
+
+  bundle:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # musl binaries are static, so they run on any Linux, not just on
+          # those with the runner's glibc or newer.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, arch: x64 }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, arch: arm64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, arch: arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, arch: x64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, arch: x64 }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, arch: arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # Packs for the runner's OS; `arch` is given because the x64 Mac build is
+      # cross-compiled on an arm64 runner.
+      - uses: Synphonyte/mcpb@v0
+        id: mcpb
+        with:
+          executable: target/${{ matrix.target }}/release/${{ env.BINARY }}
+          arch: ${{ matrix.arch }}
+          out: dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.mcpb.outputs.name }}
+          path: ${{ steps.mcpb.outputs.bundle }}
+          if-no-files-found: error
+
+  # One job creates the release once every bundle is packed, so a failed build
+  # never leaves a release with some platforms missing.
+  release:
+    needs: bundle
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*.mcpb
+          generate_release_notes: true
