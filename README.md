@@ -49,7 +49,7 @@ git push origin v0.1.0
 ```
 
 `.github/workflows/release.yml` builds the server for macOS (arm64, x64), Linux (arm64, x64) and
-Windows (arm64, x64), packs each build with the [`Synphonyte/mcpb`](https://github.com/Synphonyte/mcpb)
+Windows (arm64, x64), packs each build with the [`Synphonyte/mcpb-pack`](https://github.com/Synphonyte/mcpb-pack)
 action, and attaches the six bundles to a GitHub release:
 
 ```text

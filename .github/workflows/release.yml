@@ -72,7 +72,7 @@ jobs:
 
       # Packs for the runner's OS; `arch` is given because the x64 Mac build is
       # cross-compiled on an arm64 runner.
-      - uses: Synphonyte/mcpb@v0
+      - uses: Synphonyte/mcpb-pack@v0
         id: mcpb
         with:
           executable: target/${{ matrix.target }}/release/${{ env.BINARY }}
