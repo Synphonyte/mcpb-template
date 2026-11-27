@@ -1,0 +1,28 @@
+{
+  "manifest_version": "0.3",
+  "name": "my-server",
+  "display_name": "My Server",
+  "version": "0.1.0",
+  "description": "A minimal MCP server written in Rust with rmcp.",
+  "author": {
+    "name": "Your Name"
+  },
+  "server": {
+    "type": "binary",
+    "entry_point": "server/my-server",
+    "mcp_config": {
+      "command": "${__dirname}/server/my-server",
+      "args": [],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "greet",
+      "description": "Greet someone by name."
+    }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"]
+  }
+}
